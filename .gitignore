@@ -1,0 +1,9 @@
+node_modules/
+dist/
+data/
+*.blend1
+__pycache__/
+.env
+.env.*
+*.sqlite*
+

@@ -1,0 +1,28 @@
+name: reservation
+services:
+  arena:
+    build: .
+    image: polaris-reservation:${RELEASE_VERSION:-local}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4196:4173"
+    environment:
+      SESSION_PATH: ${SESSION_PATH:-/}
+      SESSION_SECURE: ${SESSION_SECURE:-0}
+    volumes:
+      - reservations:/app/data
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4173/api/holds').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    logging:
+      options:
+        max-size: "5m"
+        max-file: "3"
+volumes:
+  reservations:
