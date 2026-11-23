@@ -118,8 +118,7 @@ function drawOrder() {
   q('#total').textContent = money(selected.reduce((sum, item) => sum + item.price, 0));
   q('.book').disabled = !selected.length || busy;
   q('.book').innerHTML = busy ? 'Подождите…' : 'Забронировать ' + icon('arrow', 17);
-  q('.order-link').hidden = !selected.length;
-  q('.order-link').textContent = 'К заказу (' + selected.length + ')';
+  q('#mobile-quantity').textContent = selected.length;
 }
 
 function setZoom(value) {
@@ -319,6 +318,11 @@ async function click(event) {
   const target = event.target.closest('button,[role=button]');
   if (!target || target.disabled) return;
   const d = target.dataset;
+  if (d.pane) {
+    q('.workspace').dataset.pane=d.pane;
+    for(const button of q('.mobile-panels').querySelectorAll('button'))button.setAttribute('aria-pressed',button===target);
+    return;
+  }
   if (d.action === 'help') {
     showDialog('Как забронировать', '<ol class="help-steps"><li>Выберите чёрный сектор на схеме. Откройте ряд и добавьте свободные места в заказ.</li><li>Жёлтые VIP-комнаты бронируются целиком. Зелёные зоны у льда предназначены для команд и тренеров.</li><li>Выберите до восьми позиций и нажмите «Забронировать». Демо-бронь хранится в этом браузере 10 минут. Отменить её можно в разделе «Мои брони».</li></ol>', 'help');
     return;

@@ -15,16 +15,8 @@
     <nav aria-label="Сервис"><button data-action="help" class="help">Помощь</button><button data-action="holds" class="nav-holds"><span data-icon="ticket"></span> Мои брони <span id="hold-count" hidden></span></button></nav>
   </div></header>
   <main class="wrap">
-    <section class="event" aria-labelledby="event-title">
-      <img class="event-photo" src="./match.webp" alt="" width="840" height="560" fetchpriority="high">
-      <div class="event-copy">
-        <div class="event-type"><i></i> Хоккей <span>/</span> Демо-матч</div>
-        <h1 id="event-title">Полярис <span>×</span> Шторм</h1>
-        <div class="event-meta"><span><b data-icon="calendar"></b>5 декабря 2026</span><span><b data-icon="clock"></b>19:00 МСК</span><span><b data-icon="pin"></b>Ледовый дворец «Полярис»</span></div>
-      </div>
-    </section>
-    <div class="workspace">
-      <section class="panel plan-panel" aria-labelledby="area-title">
+    <div class="workspace" data-pane="arena">
+      <section class="panel plan-panel" id="arena-panel" aria-labelledby="area-title">
         <div class="panel-heading"><div><h2 id="area-title" tabindex="-1">Обзор арены</h2><p id="area-description">Выберите сектор или отдельную VIP-комнату.</p></div>
           <div class="switch" role="group" aria-label="Отображение зон"><i></i><button data-action="three" aria-pressed="true"><span data-icon="cube"></span>3D</button><button data-action="map" aria-pressed="false"><span data-icon="ice"></span>Схема</button><button data-action="list" aria-pressed="false"><span data-icon="list"></span>Список</button></div>
           <div class="section-actions" role="group" aria-label="Действия в секторе" hidden>
@@ -43,9 +35,16 @@
           </div>
         </div>
         <div id="area"></div>
-        <a class="order-link" href="#order-title" hidden>К заказу</a>
       </section>
-      <aside class="order-column" aria-label="Заказ и стоимость">
+      <aside class="order-column" id="order-column" aria-label="Матч, заказ и стоимость">
+        <section class="event" aria-labelledby="event-title">
+          <img class="event-photo" src="./match.webp" alt="" width="840" height="560" fetchpriority="high">
+          <div class="event-copy">
+            <div class="event-type"><i></i> Хоккей <span>/</span> Демо-матч</div>
+            <h1 id="event-title">Полярис <span>×</span> Шторм</h1>
+            <div class="event-meta"><span><b data-icon="calendar"></b>5 декабря 2026</span><span><b data-icon="clock"></b>19:00 МСК</span><span><b data-icon="pin"></b>Ледовый дворец «Полярис»</span></div>
+          </div>
+        </section>
         <section class="panel order"><div class="order-head"><h2 id="order-title" tabindex="-1">Ваш заказ</h2><span id="quantity">0</span></div>
           <div class="empty-cart"><div class="empty-ticket" aria-hidden="true"><span data-icon="ticket"></span></div><strong>Пока пусто</strong><p>Выберите места на трибуне<br>или отдельную VIP-комнату.</p></div>
           <div id="basket"></div>
@@ -56,6 +55,10 @@
         <section class="rates" aria-labelledby="prices-title"><h3 id="prices-title">Стоимость билетов</h3><div><span><i class="key stand-key"></i>Трибуны</span><b id="stand-price">—</b></div><div><span><i class="key room-key"></i>VIP-комната целиком</span><b id="room-price">—</b></div></section>
       </aside>
     </div>
+    <nav class="mobile-panels" aria-label="Разделы бронирования">
+      <button data-pane="arena" aria-pressed="true" aria-controls="arena-panel"><span data-icon="ice"></span>Арена</button>
+      <button data-pane="order" aria-pressed="false" aria-controls="order-column"><span data-icon="ticket"></span>Заказ <b id="mobile-quantity">0</b></button>
+    </nav>
   </main>
   <dialog aria-labelledby="dialog-title"><div id="dialog-body"></div></dialog>
   <div id="notice" role="status" aria-live="polite"></div>
