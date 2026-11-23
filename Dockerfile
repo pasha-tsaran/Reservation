@@ -14,7 +14,6 @@ ENV NODE_ENV=production HOST=0.0.0.0 PORT=4173
 WORKDIR /app
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/server ./server
-COPY --from=build /app/public/arena/layout.json ./public/arena/layout.json
 COPY package.json ./
 RUN mkdir -p /app/data && chown node:node /app/data
 USER node

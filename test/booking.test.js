@@ -3,8 +3,31 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
+import { arenaPlan, tickets } from '../server/catalog.js';
+
+test('Only the lower tier, whole rooms and public seats are offered', () => {
+  const { sectors, rooms } = arenaPlan(new Set(['vip-04']));
+  const layout=JSON.parse(readFileSync(new URL('../public/arena/layout.json',import.meta.url),'utf8'));
+  assert.deepEqual(new Set(layout.seats.map(s=>s.slice(0,3).join('-'))),
+    new Set([...tickets.values()].filter(s=>s.kind==='seat').map(s=>s.id)));
+  assert.deepEqual(layout.sectors.filter(s=>s.id>=200).map(s=>s.id-200),rooms.map(room=>room.number));
+  assert.equal(sectors.length, 12);
+  assert.equal(rooms.length, 8);
+  assert.equal(rooms.find(room => room.id === 'vip-04').state, 1);
+  for (const sector of sectors) {
+    assert.equal(sector.rows.length, 9);
+    for (const [r, row] of sector.rows.entries()) {
+      for (const [n, state] of Array.from(row.states).entries()) {
+        const bench = [102, 108].includes(sector.id) && r < 2 && n >= 3 && n < 20;
+        assert.equal(state === '-', bench);
+        assert.equal(tickets.has([sector.id, r + 1, n + 1].join('-')), !bench);
+      }
+    }
+    assert.equal(tickets.has(sector.id + '-10-1'), false);
+  }
+});
 
 test('Two sessions competing for a seat, atomic groups, cancellation, and expiry', async t=>{
   // Keep the test independent of the running arena and its reservations.
@@ -40,5 +63,25 @@ test('Two sessions competing for a seat, atomic groups, cancellation, and expiry
   assert.equal(afterExpiry.inventory[first][1],0);
   assert.equal(afterExpiry.inventory[second][1],0);
   assert.equal((await reserve(cookies[winner],[first,second])).status,201);
+  for (const removed of ['101-10-1', '102-1-10', '108-2-8', '201-1-1']) {
+    assert.equal((await reserve(cookies[other],[removed])).status,400);
+  }
+  const roomHold = await reserve(cookies[winner],['vip-01']);
+  assert.equal(roomHold.status,201);
+  const room = (await roomHold.json()).hold;
+  assert.equal(room.seats[0].kind,'room');
+  assert.equal(room.total,6500);
+  assert.equal((await reserve(cookies[other],['vip-01'])).status,409);
+  assert.equal((await cancel(cookies[winner],room.id)).status,200);
+
+  // Unexpired reservations created before the plan changed can still be viewed and released.
+  const legacy = 'abcdaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  database.prepare('INSERT INTO holds VALUES(?,?,?)').run(legacy,cookies[other].split('=')[1],Date.now()+60000);
+  const insert = database.prepare('INSERT INTO held_seats VALUES(?,?)');
+  for (const seat of ['101-16-1','201-1-1']) insert.run(seat,legacy);
+  const current = await (await fetch(root+'/api/arena',{headers:{cookie:cookies[other]}})).json();
+  assert.equal(current.holds.find(hold=>hold.id===legacy).total,8900);
+  assert.equal(current.rooms[0].state,0);
+  assert.equal((await cancel(cookies[other],legacy)).status,200);
 });
 

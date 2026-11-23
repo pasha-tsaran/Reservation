@@ -1,11 +1,11 @@
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { arenaPlan, heldTicket, tickets } from './catalog.js';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const layout = JSON.parse(readFileSync(path.join(root, 'public/arena/layout.json'), 'utf8'));
 const directory = process.env.ARENA_DATA_DIR || path.join(root, 'data');
 mkdirSync(directory, { recursive: true });
 const db = new DatabaseSync(path.join(directory, 'reservations.sqlite'));
@@ -15,13 +15,6 @@ db.exec(`PRAGMA journal_mode=WAL;
   CREATE TABLE IF NOT EXISTS held_seats (seat TEXT PRIMARY KEY, hold TEXT NOT NULL);
   CREATE INDEX IF NOT EXISTS hold_owner ON holds(owner);`);
 const match = { title: 'Полярис — Шторм', arena: 'Ледовый дворец «Полярис»', startsAt: '2026-12-05T19:00:00+03:00' };
-const sectorById = new Map(layout.sectors.map(sector => [sector.id, sector]));
-const tickets = new Map(layout.seats.map(([sector, row, number]) => {
-  const id = [sector,row,number].join('-');
-  const hash = Math.imul(sector*4099 + row*199 + number, 2654435761) >>> 0;
-  const price = sectorById.get(sector).base + (sector > 200 ? 0 : row <= 3 ? 850 : row <= 8 ? 400 : 0);
-  return [id, { id, sector, row, number, price, sold: (hash ^ (hash >>> 11)) >>> 0 < 1360000000 }];
-}));
 const listMine = db.prepare('SELECT h.id, h.expires, s.seat FROM holds h JOIN held_seats s ON s.hold=h.id WHERE h.owner=? AND h.expires>? ORDER BY h.expires DESC, s.seat');
 const insertHold = db.prepare('INSERT INTO holds VALUES(?,?,?)');
 const insertSeat = db.prepare('INSERT INTO held_seats VALUES(?,?)');
@@ -32,8 +25,9 @@ function myHolds(owner) {
   for (const record of listMine.all(owner,Date.now())) {
     if (!result.has(record.id)) result.set(record.id, { id: record.id, expires: record.expires, seats: [], total: 0 });
     const hold = result.get(record.id);
-    const { id, sector, row, number, price } = tickets.get(record.seat);
-    hold.seats.push({ id, sector, row, number, price });
+    const { sold, ...item } = heldTicket(record.seat);
+    const { price } = item;
+    hold.seats.push(item);
     hold.total += price;
   }
   return [...result.values()];
@@ -43,8 +37,9 @@ function expire(now) {
   db.prepare('DELETE FROM holds WHERE expires<=?').run(now);
 }
 const busySeats = db.prepare('SELECT s.seat FROM held_seats s JOIN holds h ON h.id=s.hold WHERE h.expires>?');
-function snapshot(owner) {
+function snapshot(owner, compact = false) {
   const held = new Set(busySeats.all(Date.now()).map(x=>x.seat));
+  if (compact) return { match, ...arenaPlan(held), holds: myHolds(owner) };
   const inventory = {};
   for (const seat of tickets.values()) inventory[seat.id] = [seat.price, seat.sold ? 2 : held.has(seat.id) ? 1 : 0];
   return { match, inventory, holds: myHolds(owner) };
@@ -73,6 +68,7 @@ export async function bookingApi(req,res,next) {
   res.setHeader('Cache-Control','no-store');
   const send = (status,data)=>{ res.statusCode=status; res.end(JSON.stringify(data)); };
   try {
+    if (req.method==='GET' && url.pathname==='/api/arena') return send(200,snapshot(owner,true));
     if (req.method==='GET' && url.pathname==='/api/match') return send(200,snapshot(owner));
     if (req.method==='GET' && url.pathname==='/api/holds') return send(200,{holds:myHolds(owner)});
     if (req.headers.origin && new URL(req.headers.origin).host!==req.headers.host) throw fail(403,'Недоступный источник запроса.');
@@ -85,7 +81,7 @@ export async function bookingApi(req,res,next) {
       try {
         const now=Date.now();
         expire(now);
-        if (ids.some(id=>tickets.get(id).sold || taken.get(id))) throw fail(409,'Одно из мест уже занято. Выберите другое кресло.');
+        if (ids.some(id=>tickets.get(id).sold || taken.get(id))) throw fail(409,'Часть заказа уже занята. Проверьте доступные места и комнаты.');
         const id=randomUUID();
         insertHold.run(id,owner,now+holdDuration);
         for (const seat of ids) insertSeat.run(seat,id);

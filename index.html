@@ -1,4 +1,64 @@
 <!doctype html>
 <html lang="ru">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#101821"><meta name="description" content="Выбор места в трёхмерной хоккейной арене Полярис. Посмотрите на лёд со своего кресла и забронируйте билеты."><title>Полярис Арена — билеты на хоккей</title><link rel="icon" href="/polaris.svg"></head>
-<body><div id="app"></div><script type="module" src="/src/main.js"></script></body></html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f5f1">
+  <meta name="description" content="Схема первого яруса ледового дворца Полярис. Выберите места на трибуне или отдельную VIP-комнату и оформите бронь.">
+  <title>Полярис Арена — билеты на хоккей</title>
+  <link rel="icon" href="./polaris.svg">
+  <link rel="preload" href="/node_modules/@fontsource-variable/roboto-condensed/files/roboto-condensed-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+</head>
+<body>
+  <header class="mast"><div class="mast-inner wrap">
+    <div class="brand" aria-label="Polaris Arena"><img src="./polaris.svg" alt="" width="36" height="36"><span>POLARIS <b>ARENA</b></span></div>
+    <nav aria-label="Сервис"><button data-action="help" class="help">Помощь</button><button data-action="holds" class="nav-holds"><span data-icon="ticket"></span> Мои брони <span id="hold-count" hidden></span></button></nav>
+  </div></header>
+  <main class="wrap">
+    <section class="event" aria-labelledby="event-title">
+      <img class="event-photo" src="./match.webp" alt="" width="840" height="560" fetchpriority="high">
+      <div class="event-copy">
+        <div class="event-type"><i></i> Хоккей <span>/</span> Демо-матч</div>
+        <h1 id="event-title">Полярис <span>×</span> Шторм</h1>
+        <div class="event-meta"><span><b data-icon="calendar"></b>5 декабря 2026</span><span><b data-icon="clock"></b>19:00 МСК</span><span><b data-icon="pin"></b>Ледовый дворец «Полярис»</span></div>
+      </div>
+    </section>
+    <div class="workspace">
+      <section class="panel plan-panel" aria-labelledby="area-title">
+        <div class="panel-heading"><div><h2 id="area-title" tabindex="-1">Обзор арены</h2><p id="area-description">Выберите сектор или отдельную VIP-комнату.</p></div>
+          <div class="switch" role="group" aria-label="Отображение зон"><i></i><button data-action="three" aria-pressed="true"><span data-icon="cube"></span>3D</button><button data-action="map" aria-pressed="false"><span data-icon="ice"></span>Схема</button><button data-action="list" aria-pressed="false"><span data-icon="list"></span>Список</button></div>
+          <div class="section-actions" role="group" aria-label="Действия в секторе" hidden>
+            <button data-action="preview" class="preview-button" hidden>Посмотреть с места</button>
+            <button data-action="back" class="back"><span data-icon="back"></span> К арене</button>
+          </div>
+        </div>
+        <div id="arena-stage" class="arena-stage" aria-label="Трёхмерная хоккейная арена">
+          <div id="scene" role="group" aria-label="Вращение и выбор мест на арене"></div><div id="pins"></div>
+          <span class="scene-status" role="status">Загружаем 3D-арену…</span>
+          <div class="scene-tools"><button data-action="scene-out" aria-label="Отдалить">−</button><button data-action="scene-in" aria-label="Приблизить">+</button><button data-action="expand" aria-label="Развернуть арену"><span data-icon="expand"></span></button></div>
+          <div class="scene-dock">
+            <button data-action="top" aria-pressed="false">Вид сверху</button>
+            <button data-action="sector-camera" hidden>К сектору</button>
+            <button data-action="land" hidden>Пропустить подлёт</button>
+          </div>
+        </div>
+        <div id="area"></div>
+        <a class="order-link" href="#order-title" hidden>К заказу</a>
+      </section>
+      <aside class="order-column" aria-label="Заказ и стоимость">
+        <section class="panel order"><div class="order-head"><h2 id="order-title" tabindex="-1">Ваш заказ</h2><span id="quantity">0</span></div>
+          <div class="empty-cart"><div class="empty-ticket" aria-hidden="true"><span data-icon="ticket"></span></div><strong>Пока пусто</strong><p>Выберите места на трибуне<br>или отдельную VIP-комнату.</p></div>
+          <div id="basket"></div>
+          <div class="total"><span>Итого</span><strong id="total">0 ₽</strong></div>
+          <button class="primary book" data-action="book" disabled>Забронировать <span data-icon="arrow"></span></button>
+          <p class="hold-note"><span data-icon="clock"></span> Бронь действует 10 минут</p>
+        </section>
+        <section class="rates" aria-labelledby="prices-title"><h3 id="prices-title">Стоимость билетов</h3><div><span><i class="key stand-key"></i>Трибуны</span><b id="stand-price">—</b></div><div><span><i class="key room-key"></i>VIP-комната целиком</span><b id="room-price">—</b></div></section>
+      </aside>
+    </div>
+  </main>
+  <dialog aria-labelledby="dialog-title"><div id="dialog-body"></div></dialog>
+  <div id="notice" role="status" aria-live="polite"></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

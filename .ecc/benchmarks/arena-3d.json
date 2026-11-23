@@ -1,0 +1,51 @@
+{
+  "viewport": "1280x850, DPR 1",
+  "method": "Production builds on localhost in fresh Chrome with ANGLE SwiftShader. Triangle and draw-call counts are the final settled WebGL frame after the same overview zoom and opening sector 108. Network sizes are encoded response bodies including HTML. Idle callbacks counted over one second after settling.",
+  "before": {
+    "overview": {
+      "triangles": 1614328,
+      "drawCalls": 71
+    },
+    "section": {
+      "triangles": 1628940,
+      "drawCalls": 45
+    },
+    "network": {
+      "bytes": 4057129,
+      "models": [
+        2041848,
+        189232,
+        412920
+      ]
+    },
+    "idleCallbacks1s": 168
+  },
+  "after": {
+    "overview": {
+      "triangles": 205464,
+      "drawCalls": 65
+    },
+    "section": {
+      "triangles": 611094,
+      "drawCalls": 41
+    },
+    "network": {
+      "bytes": 544920,
+      "models": [
+        86824,
+        38042
+      ]
+    },
+    "idleCallbacks1s": 0
+  },
+  "trianglesPerChair": {
+    "original": {
+      "far": 324,
+      "near": 3244
+    },
+    "optimized": {
+      "far": 76,
+      "near": 3244
+    }
+  }
+}

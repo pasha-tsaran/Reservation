@@ -21,20 +21,20 @@ function roundedPath(points){
   return path;
 }
 
-// The boxes have a waist-high glass rail and four posts at the front. Cross
-// through the middle of an open bay with headroom under the 14.88 m lintel.
-function suitePassage(suite,p){
-  const edge=suite.surface[0],left=edge[0][0],right=edge.at(-1)[0];
-  const bay=MathUtils.clamp(Math.floor(3*(p.x-left)/(right-left)),0,2);
-  const x=MathUtils.lerp(left,right,(bay+.5)/3),z=suite.normal[1];
-  return {outside:new Vector3(x,13.75,z*33.4),inside:new Vector3(x,13.75,p.z)};
+// The room preview uses a standing viewpoint inside the glass frontage.
+export function roomView(suite) {
+  const [x, floor, z] = suite.anchor;
+  return [suite.id, 0, 0, x, floor+.30, z, suite.normal[1] < 0 ? Math.PI : 0];
 }
-
+function suitePassage(suite,p){
+  const [cx,floor,z]=suite.anchor, sign=suite.normal[1];
+  const x=cx+(p.x<cx?-2.55:2.55), y=floor+2.18;
+  return {outside:new Vector3(x,y,z-sign*3.6),inside:new Vector3(x,y,p.z)};
+}
 function above(position,y){return new Vector3(position.x,y,position.z);}
-
 function containingSuite(p,suites){
-  return suites.find(s=>Math.abs(p.x-s.anchor[0])<5.72&&p.z*s.normal[1]>34.45
-    &&p.z*s.normal[1]<41.25&&p.y>11.35&&p.y<14.88);
+  return suites.find(s=>Math.abs(p.x-s.anchor[0])<5.12 && Math.abs(p.z-s.anchor[2])<2.46
+    &&p.y>s.anchor[1]-.20&&p.y<s.anchor[1]+2.89);
 }
 
 function crossBowl(points,destination,suites){
@@ -72,7 +72,7 @@ export function seatFlight(start,initialDirection,seat,suites){
   const standing=eye.clone().addScaledVector(inward,.12).addScaledVector(up,.52);
   const points=[start.clone()];
   if(originSuite){
-    points.push(above(start,13.75));
+    points.push(above(start,originSuite.anchor[1]+2.18));
     if(originSuite!==suite){
       const exit=suitePassage(originSuite,start);
       points.push(exit.inside,exit.outside);
@@ -83,7 +83,7 @@ export function seatFlight(start,initialDirection,seat,suites){
       const entry=suitePassage(suite,eye);
       crossBowl(points,entry.outside,suites);points.push(entry.inside);
     }
-    points.push(above(standing,13.75));
+    points.push(above(standing,suite.anchor[1]+2.18));
   }else{
     const approach=eye.clone().addScaledVector(inward,1.45).addScaledVector(up,1.75);
     crossBowl(points,approach,suites);
@@ -111,7 +111,7 @@ export function seatFlight(start,initialDirection,seat,suites){
 
 export function sectionFlight(start,initialDirection,pose,suites){
   const suite=containingSuite(start,suites);
-  const height=suite?13.75:clearanceHeight(start,suites)+.65;
+  const height=suite?suite.anchor[1]+2.18:clearanceHeight(start,suites)+.65;
   const raised=above(start,Math.max(start.y,height));
   const points=[raised];
   if(suite){

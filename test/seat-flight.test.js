@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {Box3,DoubleSide,Raycaster,Triangle,Vector3} from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {sectionPose} from '../src/camera-space.js';
-import {seatFlight,sectionFlight} from '../src/seat-flight.js';
+import {seatFlight,sectionFlight,roomView} from '../src/seat-flight.js';
 
 const asset=name=>new URL('../public/arena/'+name,import.meta.url);
 const {seats,sectors}=JSON.parse(readFileSync(asset('layout.json'),'utf8'));
@@ -86,16 +86,16 @@ test('Approach, VIP entry, exit and mid-flight retarget avoid the exported arena
     return flight;
   }
   const seat=(sector,row,number)=>seats.find(s=>s[0]===sector&&s[1]===row&&s[2]===number);
-  const corner=seat(104,16,1),box=seat(201,2,11),front=seat(107,1,7);
+  const corner=seat(104,9,1),box=roomView(suites[0]),front=seat(107,1,7);
   check(sectionPose(sectors[3],.52).pos,corner);
   const entry=check(eye(corner),box);
-  check(eye(box),seat(201,1,1));check(eye(box),seat(202,2,12));check(eye(box),front);
+  check(eye(box),roomView(suites[3]));check(eye(box),roomView(suites[7]));check(eye(box),front);
   check(new Vector3(0,75,-54),box);
   for(const t of [.45,.72,.89]){
     const interrupted=new Vector3();entry.sample(t,interrupted,d);
     check(interrupted,front);
   }
-  for(const s of [corner,box,front,seat(201,1,1),seat(202,2,12),seat(102,16,12)]){
+  for(const s of [corner,box,front,roomView(suites[3]),roomView(suites[7]),seat(102,9,12)]){
     const pose=sectionPose(sectors.find(sec=>sec.id===s[0]),.65);
     const inbound=seatFlight(pose.pos,direction,s,suites);
     for(const t of [.17,.55,.78,1]){

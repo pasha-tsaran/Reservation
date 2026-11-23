@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {Scene,Raycaster,Vector3} from 'three';
 import {sectorSurfaces} from '../src/seating.js';
 
-test('Each bank can be picked across its footprint, including the upper tier and suite roofs',()=>{
+test('Each bank can be picked across its footprint, including the first tier and all eight room roofs',()=>{
   const {sectors}=JSON.parse(readFileSync(new URL('../public/arena/layout.json',import.meta.url),'utf8'));
   const scene=new Scene(),zones=sectorSurfaces(scene,sectors),down=new Vector3(0,-1,0);
   for(const sector of sectors){

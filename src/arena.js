@@ -6,9 +6,7 @@ import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {makeSeating,sectorSurfaces} from './seating.js';
 import {makeIce,signTexture} from './ice.js';
 import {clearanceHeight,clearPath,configureOrbit,sectionPose} from './camera-space.js';
-import {createMatch} from './match.js';
-import {seatFlight,sectionFlight,beneathRoof} from './seat-flight.js';
-import {spectatorRenderer} from './spectator-renderer.js';
+import {seatFlight,sectionFlight,beneathRoof,roomView} from './seat-flight.js';
 
 const up=new T.Vector3(0,1,0);
 const asVec=a=>new T.Vector3(...a);
@@ -33,16 +31,7 @@ function furnish(scene){
   c.fillStyle='#82e6e3';c.font='bold 42px Arial';c.textAlign='center';c.fillText('POLARIS   ARENA',320,70);
   c.fillStyle='#effaff';c.font='bold 120px Arial';c.fillText('0  :  0',320,211);
   const tex=new T.CanvasTexture(canvas);tex.colorSpace=T.SRGBColorSpace;
-  let shownTime=-1;
-  roof.userData.clock=seconds=>{
-    const remaining=1200-Math.floor(seconds)%1200;
-    if(remaining===shownTime)return;
-    shownTime=remaining;
-    c.fillStyle='#102d41';c.fillRect(0,227,640,96);c.fillStyle='#a3d7de';c.font='32px Arial';
-    c.fillText(Math.floor(remaining/60)+':'+String(remaining%60).padStart(2,'0')+'     •     1 ПЕРИОД',320,280);
-    tex.needsUpdate=true;
-  };
-  roof.userData.clock(0);
+  c.fillStyle='#a3d7de';c.font='32px Arial';c.fillText('POLARIS  ICE  CLUB',320,280);
   const screen=new T.MeshBasicMaterial({map:tex});
   for(let side=0;side<4;side++){
     const broad=side%2===0;
@@ -86,19 +75,24 @@ function furnish(scene){
       const p=new T.Mesh(new T.PlaneGeometry(7,.85),signs[(i+2)%3]);p.position.set(i*8,.65,sign*14.98);p.rotation.y=sign<0?0:Math.PI;scene.add(p);
     }
     for(let i=-1;i<=1;i++){
-      const p=new T.Mesh(new T.PlaneGeometry(12.5,.9),fascia);p.position.set(i*14,5.82,sign*27.86);p.rotation.y=sign<0?0:Math.PI;scene.add(p);
+      const p=new T.Mesh(new T.PlaneGeometry(12.5,.9),fascia);p.position.set(i*14,4.23,sign*26.10);p.rotation.y=sign<0?0:Math.PI;scene.add(p);
     }
   }
   return roof;
 }
-function surfaceTexture(mesh){
+function surfaceTexture(mesh,textures){
+  const wood=['Timber','Suite'].includes(mesh.material.name);
+  let tex=textures.get(wood);
+  if(!tex){
   const canvas=document.createElement('canvas');canvas.width=128;canvas.height=128;
   const ctx=canvas.getContext('2d'),data=ctx.createImageData(128,128);let seed=773;
-  const timber=['Timber','Suite'].includes(mesh.material.name);
+  const timber=wood;
   for(let i=0;i<data.data.length;i+=4){seed=(1664525*seed+1013904223)>>>0;const v=224+(seed>>>27);
     const x=(i/4)%128,y=Math.floor(i/512),grain=timber?10*Math.sin(x*.49+Math.sin(y*Math.PI/64)*1.9)+7*Math.sin(x*.147+Math.cos(y*Math.PI/64)):0;
     data.data[i]=v-grain;data.data[i+1]=v-grain*1.3;data.data[i+2]=v-grain*1.45;data.data[i+3]=255;}
-  ctx.putImageData(data,0,0);const tex=new T.CanvasTexture(canvas);tex.wrapS=tex.wrapT=T.RepeatWrapping;tex.colorSpace=T.SRGBColorSpace;
+  ctx.putImageData(data,0,0);tex=new T.CanvasTexture(canvas);tex.wrapS=tex.wrapT=T.RepeatWrapping;tex.colorSpace=T.SRGBColorSpace;
+    textures.set(wood,tex);
+  }
   const p=mesh.geometry.attributes.position,n=mesh.geometry.attributes.normal,uv=[];
   for(let i=0;i<p.count;i++){
     const x=p.getX(i),y=p.getY(i),z=p.getZ(i);
@@ -115,8 +109,10 @@ function contactShadow(scene){
   plane.rotation.x=-Math.PI/2;plane.position.y=-1.65;scene.add(plane);
 }
 export async function createArena(mount,labels,layout,callbacks){
-  const renderer=new T.WebGLRenderer({alpha:true,antialias:true,powerPreference:'high-performance'});
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.65));renderer.outputColorSpace=T.SRGBColorSpace;
+  const compact=matchMedia('(pointer: coarse)').matches || mount.clientWidth<550 || navigator.hardwareConcurrency<=4;
+  const renderer=new T.WebGLRenderer({alpha:true,antialias:true,powerPreference:'default'});
+  const pixelRatio=Math.min(window.devicePixelRatio,1.5);
+  renderer.setPixelRatio(pixelRatio);renderer.outputColorSpace=T.SRGBColorSpace;
   renderer.setClearColor(0x0d161d,0);mount.replaceChildren(renderer.domElement);
   const canvas=renderer.domElement;
   const scene=new T.Scene(),camera=new T.PerspectiveCamera(38,1,.085,500);
@@ -124,39 +120,39 @@ export async function createArena(mount,labels,layout,callbacks){
   const controls=new OrbitControls(camera,canvas);controls.enablePan=false;controls.enableDamping=true;controls.dampingFactor=.1;
   configureOrbit(controls);
   controls.rotateSpeed=.67;controls.zoomSpeed=.9;
-  renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFShadowMap;renderer.shadowMap.autoUpdate=false;
-  scene.add(new T.HemisphereLight(0xddefff,0x475967,1.15));
+  renderer.shadowMap.enabled=!compact;renderer.shadowMap.type=T.PCFShadowMap;renderer.shadowMap.autoUpdate=false;
+  scene.add(new T.HemisphereLight(0xddefff,0x475967,compact?1.5:1.15));
+  if(compact)scene.add(new T.AmbientLight(0xe6eef1,.46));
   const key=new T.DirectionalLight(0xffeed9,2.35);key.position.set(-47,66,-21);scene.add(key);
-  key.castShadow=true;key.shadow.mapSize.set(2048,2048);
+  key.castShadow=true;key.shadow.mapSize.set(1024,1024);
   Object.assign(key.shadow.camera,{left:-64,right:64,bottom:-55,top:55,near:1,far:165});key.shadow.camera.updateProjectionMatrix();
   key.shadow.normalBias=.045;key.shadow.bias=-.00023;
   const rim=new T.DirectionalLight(0xb3e6ff,1.14);rim.position.set(23,32,50);scene.add(rim);
   renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=.94;
-  const studio=new RoomEnvironment(),pmrem=new T.PMREMGenerator(renderer);
-  const reflections=pmrem.fromScene(studio,.035);scene.environment=reflections.texture;
-  scene.environmentIntensity=.33;pmrem.dispose();studio.dispose();
   const loader=new GLTFLoader();
-  const [building,furniture,players]=await Promise.all([loader.loadAsync('./arena/bowl.glb'),loader.loadAsync('./arena/seating.glb'),loader.loadAsync('./arena/players.glb')]);
+  let assets;
+  try {
+    assets=await Promise.all([loader.loadAsync('./arena/bowl.glb'),loader.loadAsync('./arena/seating.glb'),
+      new T.TextureLoader().loadAsync('./arena/ice.webp')]);
+  } catch(error) { renderer.dispose();renderer.forceContextLoss();throw error; }
+  const [building,furniture,iceTexture]=assets;
+  if(!compact){
+    const studio=new RoomEnvironment(),pmrem=new T.PMREMGenerator(renderer);
+    scene.environment=pmrem.fromScene(studio,.035).texture;
+    scene.environmentIntensity=.33;pmrem.dispose();studio.dispose();
+  }
+  const textures=new Map();
   const bowl=building.scene;
   bowl.traverse(o=>{if(o.isMesh){
     o.material.side=T.DoubleSide;
     if(o.material.name==='Glass'){o.material.transparent=true;o.material.opacity=.15;o.material.depthWrite=false;o.layers.set(1);}
     else{o.castShadow=['Frame','Rail','Timber','Support','Door'].includes(o.material.name);o.receiveShadow=true;}
-    if(['Slab','Riser','Aisle','Facade','Suite','Timber','Foundation'].includes(o.material.name))surfaceTexture(o);
-  }});scene.add(bowl,makeIce());contactShadow(scene);
+    if(['Slab','Riser','Aisle','Facade','Suite','Timber','Foundation'].includes(o.material.name))surfaceTexture(o,textures);
+  }});scene.add(bowl,makeIce(iceTexture));contactShadow(scene);
   const suites=layout.sectors.filter(s=>s.id>=200);
-  for(const suite of suites){
-    const [x,,z]=suite.anchor;
-    for(const offset of [-2.2,2.2]){
-      const wash=new T.PointLight(0xffbf80,16,7,2);
-      wash.position.set(x+offset,14.5,z+suite.normal[1]*.65);scene.add(wash);
-    }
-  }
   const roof=furnish(scene);
-  const game=createMatch(scene,players.scene);
   scene.traverse(o=>{if(o.isLight)o.layers.enable(1);});
-  const spectator=spectatorRenderer(renderer,scene);
-  const seating=makeSeating(scene,layout,furniture.scene);
+  const seating=makeSeating(scene,layout,furniture.scene,compact);
   const surfaces=sectorSurfaces(scene,layout.sectors);
   const blockers=[];
   bowl.traverse(o=>{if(o.isMesh&&['Slab','Riser','Facade','Suite','Foundation'].includes(o.material.name))blockers.push(o)});
@@ -167,24 +163,34 @@ export async function createArena(mount,labels,layout,callbacks){
   const direction=V(.31,1.19,1.04).normalize();
   const center=V(0,4.9,0),ray=new T.Raycaster(),mouse=new T.Vector2(),proj=V(0,0,0);
   let hovered=null,hoverAnchor=null,queuedPointer=null,previousFrame=0;
-  document.addEventListener('visibilitychange',()=>{previousFrame=0;});
+  let frameId=0,inFrame=false,inViewport=true,enabled=true;
+  function schedule(){
+    if(valid&&enabled&&inViewport&&!document.hidden&&!inFrame&&!frameId)frameId=requestAnimationFrame(frame);
+  }
+  function invalidate(){dirty=true;schedule();}
+  function visibility(){
+    if(!enabled||document.hidden||!inViewport){
+      cancelAnimationFrame(frameId);frameId=0;previousFrame=0;
+      if(move?.route)move.lastFrame=null;
+    }else invalidate();
+  }
+  document.addEventListener('visibilitychange',visibility);
+  const intersection=new IntersectionObserver(([entry])=>{inViewport=entry.isIntersecting;visibility();});
+  intersection.observe(mount);
+
   const tooltip=document.createElement('div');tooltip.className='arena-tip';tooltip.setAttribute('aria-hidden','true');labels.append(tooltip);
-  const callout=document.createElement('button');
-  callout.type='button';callout.className='seat-callout';callout.hidden=true;
-  const calloutSeat=document.createElement('small'),calloutAction=document.createElement('strong');
-  calloutAction.textContent='Посмотреть с места';callout.append(calloutSeat,calloutAction);labels.append(callout);
+  const callout=document.createElement('span');
+  callout.className='seat-callout';callout.hidden=true;labels.append(callout);
   let pinned=null,pinnedPoint=null,returnPose=null;
-  callout.onclick=()=>{if(pinned)callbacks.preview(pinned);};
   function pin(id){
     if(id===pinned)return;
     pinned=id;pinnedPoint=id?seating.point(id):null;
     if(id){
       const s=seatsById.get(id);
-      calloutSeat.textContent='Ряд '+s[1]+' · Место '+s[2];
-      callout.setAttribute('aria-label','Посмотреть с места '+s[2]+', ряд '+s[1]);
+      callout.textContent='Ряд '+s[1]+' · Место '+s[2];
     }
     tooltip.classList.toggle('open',!!hovered&&hovered.seat!==pinned);
-    positionCallout();dirty=true;
+    positionCallout();invalidate();
   }
   function positionCallout(){
     if(!pinnedPoint||move||mode!=='section'){callout.hidden=true;return;}
@@ -212,11 +218,13 @@ export async function createArena(mount,labels,layout,callbacks){
       canvas.style.cursor=value?.seat&&inventory[value.seat]?.[1]!==0?'not-allowed':value?'pointer':'grab';
       if(value){
         let title,detail;
-        if(value.sector){const s=seating.stat(value.sector);title=value.sector>200?'VIP-ложа '+(value.sector-200):'Сектор '+value.sector;detail=s.count?s.count+' своб. мест · от '+price(s.min):'Свободных мест нет';}
+        if(value.sector>=201){const key='vip-'+String(value.sector-200).padStart(2,'0');const room=inventory[key];
+          title='VIP-комната '+(value.sector-200);detail=room?.[1]===0?'Комната целиком · '+price(room[0]):'Занята';}
+        else if(value.sector){const s=seating.stat(value.sector);title='Сектор '+value.sector;detail=s.count?s.count+' своб. мест · от '+price(s.min):'Свободных мест нет';}
         else{const s=seatsById.get(value.seat);title='Ряд '+s[1]+' · Место '+s[2];detail=inventory[value.seat]?.[1]!==0?'Занято':(cart.includes(value.seat)?'В заказе · ':'Свободно · ')+price(inventory[value.seat][0]);}
         const head=document.createElement('strong'),sub=document.createElement('span');head.textContent=title;sub.textContent=detail;tooltip.replaceChildren(head,sub);
       }
-      tooltip.classList.toggle('open',!!value&&(!pinned||value.seat!==pinned));dirty=true;
+      tooltip.classList.toggle('open',!!value&&(!pinned||value.seat!==pinned));invalidate();
     }
     if(value)positionTip();
   }
@@ -234,32 +242,43 @@ export async function createArena(mount,labels,layout,callbacks){
   }
   const tags=layout.sectors.map(s=>{
     const b=document.createElement('button');b.className='sector-pin'+(s.id>200?' vip-pin':'');b.type='button';
-    b.textContent=s.id>200?'VIP '+(s.id-200):s.id;b.setAttribute('aria-label',s.id>200?'Выбрать ложу '+s.id:'Выбрать сектор '+s.id);
+    b.textContent=s.id>200?'VIP '+(s.id-200):s.id;b.setAttribute('aria-label',s.id>200?'Выбрать VIP-комнату '+(s.id-200):'Выбрать сектор '+s.id);
     b.onclick=()=>callbacks.sector(s.id);
     const activate=()=>hover({sector:s.id});b.onpointerenter=e=>{if(e.pointerType!=='touch')activate()};b.onpointerleave=()=>hover();b.onfocus=activate;b.onblur=()=>hover();labels.append(b);
-    const p=asVec(s.anchor);if(s.id<200)p.y+=3.0;else p.y+=2;
+    const p=asVec(s.anchor);p.y+=s.id<200?1.3:3.4;
     return {b,p,id:s.id};
   });
+  const sortedTags=[...tags].sort((a,b)=>(a.id>=200)-(b.id>=200));
   function labelsUpdate(){
     const {width:w,height:h}=canvas.getBoundingClientRect();
     const placed=[];
-    for(const item of [...tags].sort((a,b)=>(a.id>=200)-(b.id>=200))){
+    for(const item of sortedTags){
       let show=mode==='overview'&&!move;
       if(show){
-        proj.copy(item.p).project(camera);const x=(proj.x*.5+.5)*w,y=(-proj.y*.5+.5)*h;
-        show=proj.z>0&&proj.z<1&&x>22&&x<w-22&&y>18&&y<h-24&&!placed.some(p=>Math.abs(p.x-x)<(w<500?34:43)&&Math.abs(p.y-y)<25);
-        if(show){item.b.style.left=x+'px';item.b.style.top=y+'px';placed.push({x,y});}
+        proj.copy(item.p).project(camera);
+        const x=(proj.x*.5+.5)*w, anchorY=(-proj.y*.5+.5)*h, room=item.id>=200;
+        const width=room?34:30;
+        const outward=anchorY<h/2?-1:1;
+        const offsets=room?[6,16,26,0]:[0,8,-8];
+        const y=offsets.map(d=>anchorY+d*outward).find(y=>y>14 && y<h-20 &&
+          !placed.some(p=>Math.abs(p.x-x)<(p.width+width)*.5+2 && Math.abs(p.y-y)<18));
+        show=proj.z>0&&proj.z<1&&x>width/2&&x<w-width/2&&y!==undefined;
+        if(show){item.b.style.left=x+'px';item.b.style.top=y+'px';placed.push({x,y,width});}
+
       }
       item.b.hidden=!show;
     }
   }
   const outline=[];
-  bowl.updateMatrixWorld(true);
-  bowl.traverse(o=>{
-    if(!o.isMesh||!['Facade','Suite'].includes(o.material.name))return;
-    const attr=o.geometry.attributes.position;
-    for(let i=0;i<attr.count;i+=5)outline.push(new T.Vector3().fromBufferAttribute(attr,i).applyMatrix4(o.matrixWorld));
-  });
+  // The sector contours include the outermost VIP roofs and stand edges.
+  for(const sector of layout.sectors)for(const edge of sector.surface)
+    for(const point of edge)outline.push(asVec(point));
+  // Include the low outside wall as well as the elevated room roofs when fitting the view.
+  for(const x of [-21.5,21.5])for(const z of [-6.5,6.5])for(let i=0;i<=8;i++){
+    const angle=i*Math.PI/16;
+    const px=x+Math.sign(x)*23*Math.cos(angle),pz=z+Math.sign(z)*23*Math.sin(angle);
+    outline.push(V(px,-1.5,pz),V(px,5.52,pz));
+  }
   function overviewPose(){
     const fov=38,lens=Math.tan(T.MathUtils.degToRad(fov/2)),probe=new T.PerspectiveCamera(fov,camera.aspect,.085,500);
     const target=center.clone(),dir=topView?V(0,1,.001).normalize():direction;
@@ -282,7 +301,7 @@ export async function createArena(mount,labels,layout,callbacks){
     hover();queuedPointer=null;look=null;controls.enabled=false;
     move={start:performance.now(),ms:instant||reduce.matches?0:(cut?360:740),cut,oldRoof:roof.visible,
       from:camera.position.clone(),to:pos,focus:controls.target.clone(),target,fov0:camera.fov,fov};
-    dirty=true;
+    invalidate();
   }
   function overview(top=false,instant=false){mode='overview';currentSector=null;returnPose=null;seating.state(mode,null);topView=top;configureOrbit(controls);const p=overviewPose();fly(p.pos,p.target,p.fov,instant);}
   function section(number){
@@ -297,7 +316,8 @@ export async function createArena(mount,labels,layout,callbacks){
     }else fly(p.pos,p.target,p.fov);
   }
   function eye(id){
-    const s=seatsById.get(id);if(!s)return;
+    const suite=typeof id==='number'&&suites.find(s=>s.id===id);
+    const s=suite?roomView(suite):seatsById.get(id);if(!s)return;
     const start=camera.position.clone(),gaze=camera.getWorldDirection(new T.Vector3());
     if(mode==='section'&&!move&&currentSector?.id===s[0]){
       returnPose={sector:s[0],aspect:camera.aspect,pos:start.clone(),target:controls.target.clone(),fov:camera.fov};
@@ -309,7 +329,7 @@ export async function createArena(mount,labels,layout,callbacks){
   function startFlight(route,fov,endTarget){
     hover();queuedPointer=null;look=null;controls.enabled=false;
     move={route,lastFrame:null,elapsed:0,ms:route.duration,fov0:camera.fov,fov,endTarget,oldRoof:roof.visible};
-    canvas.style.opacity='1';dirty=true;
+    canvas.style.opacity='1';invalidate();
     if(reduce.matches){land();return;}
     callbacks.flight?.(true,mode);
   }
@@ -325,14 +345,14 @@ export async function createArena(mount,labels,layout,callbacks){
     if(t===1){move=null;controls.enabled=mode==='section';callbacks.flight?.(false);}
   }
   function land(){
-    if(move?.route)advanceFlight(1);
+    if(move?.route){advanceFlight(1);invalidate();}
   }
-  function update(inven,ids){inventory=inven;cart=ids;seating.update(inven,ids);if(hovered){const value=hovered,anchor=hoverAnchor;hover();hover(value,anchor);}dirty=true;}
+  function update(inven,ids){inventory=inven;cart=ids;seating.update(inven,ids);if(hovered){const value=hovered,anchor=hoverAnchor;hover();hover(value,anchor);}invalidate();}
   function zoom(amount){
     if(move)return;
     if(mode==='eye'){camera.fov=T.MathUtils.clamp(camera.fov*amount,40,85);camera.updateProjectionMatrix();}
     else{const offset=camera.position.clone().sub(controls.target);camera.position.copy(controls.target).add(offset.setLength(T.MathUtils.clamp(offset.length()*amount,controls.minDistance,controls.maxDistance)));}
-    dirty=true;
+    invalidate();
   }
   function hitAt(x,y){
     const r=canvas.getBoundingClientRect();mouse.set((x-r.left)/r.width*2-1,-(y-r.top)/r.height*2+1);ray.setFromCamera(mouse,camera);
@@ -356,12 +376,12 @@ export async function createArena(mount,labels,layout,callbacks){
   });
   canvas.addEventListener('pointermove',e=>{
     if(down&&Math.hypot(e.clientX-down.x,e.clientY-down.y)>5)dragged=true;
-    if(!down&&!move&&mode!=='eye'&&e.pointerType!=='touch')queuedPointer={x:e.clientX,y:e.clientY};
+    if(!down&&!move&&mode!=='eye'&&e.pointerType!=='touch'){queuedPointer={x:e.clientX,y:e.clientY};schedule();}
     if(mode==='eye'&&look&&!move){
       const d=controls.target.clone().sub(camera.position),sp=new T.Spherical().setFromVector3(d);
       sp.theta-=(e.clientX-look.x)*.004;sp.phi=T.MathUtils.clamp(sp.phi+(e.clientY-look.y)*.004,.23,2.75);
       look={x:e.clientX,y:e.clientY};controls.target.copy(camera.position).add(new T.Vector3().setFromSpherical(sp));
-      camera.lookAt(controls.target);dirty=true;
+      camera.lookAt(controls.target);invalidate();
     }
   });
   canvas.addEventListener('pointerleave',()=>{queuedPointer=null;hover()});
@@ -373,18 +393,21 @@ export async function createArena(mount,labels,layout,callbacks){
     const hit=hitAt(e.clientX,e.clientY);if(hit?.sector)callbacks.sector(hit.sector);else if(hit?.seat)callbacks.seat(hit.seat);else if(pinned)callbacks.dismiss();
   });
   canvas.addEventListener('wheel',e=>{if(mode==='eye'){e.preventDefault();zoom(e.deltaY>0?1.055:.95)}},{passive:false});
-  controls.addEventListener('change',()=>{dirty=true;if(hovered&&hoverAnchor&&!queuedPointer){queuedPointer=hoverAnchor;}});
+  controls.addEventListener('change',()=>{invalidate();if(hovered&&hoverAnchor&&!queuedPointer){queuedPointer=hoverAnchor;}});
   const observer=new ResizeObserver(()=>{
     const {width:w,height:h}=mount.getBoundingClientRect();if(!w||!h)return;
     renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();
     if(mode==='overview'&&(Math.abs(w-fitWidth)>1||Math.abs(h-fitHeight)>1)){overview(topView,true);}
     fitWidth=w;fitHeight=h;
-    dirty=true;
+    invalidate();
   });observer.observe(mount);
-  const bounds=mount.getBoundingClientRect();camera.aspect=bounds.width/bounds.height;camera.updateProjectionMatrix();renderer.setSize(bounds.width,bounds.height,false);
+  const bounds=mount.getBoundingClientRect();camera.aspect=bounds.height?bounds.width/bounds.height:1;camera.updateProjectionMatrix();renderer.setSize(bounds.width,bounds.height,false);
   const pose=overviewPose();camera.position.copy(pose.pos);controls.target.copy(pose.target);controls.update();seating.update(inventory,cart);
+  let slowFrames=0;
   function frame(now){
-    if(!valid)return;
+    frameId=0;
+    if(!valid||!enabled||!inViewport||document.hidden)return;
+    inFrame=true;
     if(move?.route){
       // A shader warm-up or a suspended tab must not consume the entire approach.
       if(move.lastFrame!==null)move.elapsed+=Math.min(now-move.lastFrame,140);
@@ -406,20 +429,34 @@ export async function createArena(mount,labels,layout,callbacks){
     if(queuedPointer&&!move&&!down){
       const p=queuedPointer;queuedPointer=null;hover(hitAt(p.x,p.y),p);
     }
-    const delta=previousFrame?Math.max(0,now-previousFrame):0;previousFrame=now;
-    const animated=!document.hidden&&game.step(delta/1000);
-    if(surfaces.animate(reduce.matches?1:delta/115))dirty=true;
-    if(seating.animateRows(reduce.matches?1:delta/180))dirty=true;
-    if(dirty||animated){
-      if(roof.visible)roof.userData.clock(game.seconds);
-      if(game.visible&&!move&&spectator)spectator.render(camera,dirty);
-      else{spectator?.invalidate();renderer.render(scene,camera);}
-      if(dirty){labelsUpdate();positionTip();positionCallout();dirty=false;}
+    const delta=previousFrame?Math.min(100,Math.max(0,now-previousFrame)):16;
+    previousFrame=now;
+    const zonesChanging=surfaces.animate(reduce.matches?1:delta/115);
+    const rowsChanging=seating.animateRows(reduce.matches?1:delta/180);
+    const redraw=dirty||zonesChanging||rowsChanging;
+    // Lower only the moving image after sustained slow frames. A resting view stays sharp.
+    if(move && delta>42)slowFrames++;
+    else slowFrames=0;
+    let ratio=pixelRatio;
+    if(move && compact)ratio=Math.min(ratio,1.1);
+    if(move && (slowFrames>=3 || renderer.getPixelRatio()<=.85))ratio=Math.min(ratio,.85);
+    if(ratio!==renderer.getPixelRatio()){renderer.setPixelRatio(ratio);dirty=true;}
+    if(redraw || dirty){
+      renderer.render(scene,camera);
+      if(dirty){labelsUpdate();positionTip();positionCallout();}
+      dirty=false;
     }
-    requestAnimationFrame(frame);
+    inFrame=false;
+    if(move||redraw)schedule();
+    else previousFrame=0;
   }
-  canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();valid=false;observer.disconnect();callbacks.fallback();});
-  requestAnimationFrame(frame);
-  return {overview,section,hover,pin,eye,land,zoom,update,match(active,running){game.set(active,running);dirty=true;},get mode(){return mode}};
+  canvas.addEventListener('webglcontextlost',e=>{
+    e.preventDefault();valid=false;cancelAnimationFrame(frameId);
+    observer.disconnect();intersection.disconnect();controls.dispose();renderer.dispose();
+    document.removeEventListener('visibilitychange',visibility);callbacks.fallback();
+  });
+  schedule();
+  return {overview,section,hover,pin,eye,land,zoom,update,
+    visible(active){if(enabled!==active){enabled=active;visibility();}},
+    get mode(){return mode}};
 }
-

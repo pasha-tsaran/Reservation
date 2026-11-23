@@ -14,7 +14,6 @@ from mathutils import Vector
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"model"))
 import seating
-import photography
 ASSETS = ROOT / "public" / "arena"
 ASSETS.mkdir(exist_ok=True, parents=True)
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -25,7 +24,7 @@ palette = {
     "Kickplate": "#f1aa32", "Cap": "#d14148", "LED": "#5cc7c0",
     "Screen": "#132934", "Goal": "#e7404a", "Net": "#acb9bb",
     "Suite": "#886245", "Warm": "#ffc98b", "Lamp": "#d2eff4",
-    "Chair": "#22668a", "Support": "#526474", "Recess": "#101b24",
+    "SuiteTrim": "#efc747", "Team": "#45a56b", "Chair": "#22668a", "Support": "#526474", "Recess": "#101b24",
     "Timber": "#9b7453", "Upholstery": "#315262", "Door": "#293f4c"
 }
 parts = defaultdict(lambda: [[], []])
@@ -87,14 +86,13 @@ def band(key,t0,t1,d0,h0,d1,h1,segments=36):
         face(key,[point(a,d0,h0),point(a,d1,h1),point(b,d1,h1),point(b,d0,h0)])
 
 def ring(key,d0,h0,d1,h1):
-    band(key,0,1,d0,h0,d1,h1,256)
+    band(key,0,1,d0,h0,d1,h1,128)
 
 def level(row):
-    return (2.65+(row-1)*0.96+(1.8 if row>=10 else 0),
-            0.45+(row-1)*0.52+(1.65 if row>=10 else 0))
+    return 2.65+(row-1)*.96, .45+(row-1)*.52
 
 def aisle_center(index):
-    # Give the two end stands enough width for their existing 32-seat upper rows.
+    # Give the two end stands enough width for their existing wider curved rows.
     shift={4:-.009,5:.009,10:-.009,11:.009}.get(index,0)
     return index/12+shift
 
@@ -115,13 +113,15 @@ def row_positions(start,end,offset,count,pitch):
         j=min(128,max(1,bisect_left(arc,distance)))
         yield ts[j-1]+(ts[j]-ts[j-1])*(distance-arc[j-1])/(arc[j]-arc[j-1])
 
-ring("Foundation",-0.02,-1.5,22.4,-1.5)
-ring("Facade",22.4,-1.5,22.4,11.2)
-ring("Foundation",22.52,0,22.52,0.38)
-ring("Frame",22.48,8.4,22.48,8.65)
-ring("Riser",20.18,9.95,22.45,11.2)
-ring("Slab",20,10.05,22.55,10.05)
-ring("Frame",22.5,11.15,21.9,11.25)
+# The concourse starts directly behind row nine.
+ring("Foundation",-.02,-1.5,14.4,-1.5)
+ring("Facade",14.4,-1.5,14.4,5.47)
+ring("Foundation",14.50,0,14.50,.26)
+ring("Riser",11.1,4.08,11.1,4.65)
+ring("Slab",11.08,4.65,14.4,4.65)
+ring("Facade",14.36,4.65,14.36,5.47)
+ring("Frame",14.43,5.47,14.30,5.52)
+ring("LED",14.42,4.37,14.42,4.44)
 ring("Slab",0.14,0.02,3.0,0.02)
 ring("Board",0.0,0.02,0,1.12)
 ring("Board",0.16,0.02,0.16,1.13)
@@ -132,79 +132,52 @@ ring("Rail",0.08,2.64,0.08,2.67)
 for i in range(94):
     rod("Frame",point(i/94,0.09,1.1),point(i/94,0.09,2.68),0.035)
 
-# Seating risers, an intermediate concourse and a continuous fascia.
-for row in range(1,17):
+# First-tier risers and stair aisles.
+for row in range(1,10):
     d,h=level(row)
     ring("Slab",d-0.15,h,d+0.81,h)
     ring("Riser",d-0.15,h-0.53,d-0.15,h)
-    if row==10:
-        ring("Foundation",d-1.95,h-1.65,d-0.14,h-1.65)
-        ring("Facade",d-0.16,h-2.15,d-0.16,h)
-        ring("LED",d-0.18,h-1.44,d-0.18,h-1.30)
     for aisle in range(12):
         t=aisle_center(aisle)
         band("Aisle",t-.0035,t+.0035,d-0.16,h+.025,d+.32,h+.025,4)
         band("Nosing",t-.0035,t+.0035,d-.16,h+.03,d-.08,h+.03,4)
         band("Aisle",t-.0035,t+.0035,d+.32,h+.27,d+.81,h+.27,4)
-        if row in (3,6,12,15):
+        if row in (3,6):
             rod("Rail",point(t,d,h+.1),point(t,d,h+1.28),.055)
             rod("Rail",point(t,d,h+1.28),point(t,d+1.80,h+2.18),.065)
             rod("Rail",point(t,d+1.80,h+1.25),point(t,d+1.80,h+2.18),.055)
-for i in range(120):
-    t=i/120
-    rod("Frame",point(t,22.53,-1.42),point(t,22.53,10.97),.092)
+for i in range(80):
+    t=i/80
+    rod("Frame",point(t,14.45,-1.42),point(t,14.45,5.44),.08)
     if i%2==0:
-        a,b=(i+.15)/120,(i+1.75)/120
-        band("Lamp",a,b,21.87,11.29,22.1,11.29,4)
-    if i%4==0:
-        rod("Frame",point(t,20.4,9.8),point(t,20.4,11.5),.065)
-ring("Rail",20.4,11.46,20.4,11.55)
+        band("Lamp",t+.001,t+.009,13.84,4.68,14.0,4.68,2)
 
-# Tunnel mouths and their lit lintels interrupt the hospitality fascia at each aisle.
-for i in range(12):
-    t=aisle_center(i)
-    a,b=t-.0063,t+.0063
-    band("Recess",a,b,12.92,4.59,12.92,6.43,6)
-    band("Frame",a-.0005,b+.0005,12.88,6.40,12.88,6.52,6)
-    band("Warm",t-.0016,t+.0016,12.86,6.51,12.86,6.61,4)
-    for edge in (a,b):
-        rod("Rail",point(edge,12.88,4.59),point(edge,12.88,6.42),.055)
+# Four distinct, empty rooms behind each long stand. All walls follow the straight boards.
+suites=[]
+for side in (0,1):
+    zsign=-1 if side==0 else 1
+    for i in range(4):
+        x=(i-1.5)*10.5
+        number=201+4*side+i
+        suites.append((x,zsign,number))
+        z=29.05*zsign
+        box("Suite",x,4.78,z,10.4,.30,4.85)
+        box("Timber",x,6.46,z+2.33*zsign,10.4,3.10,.18)
+        for offset in (-5.13,5.13):
+            box("Facade",x+offset,6.46,z,.14,3.12,4.85)
+        box("Slab",x,8.10,z,10.46,.21,4.94)
+        box("SuiteTrim",x,8.213,z-2.17*zsign,10.25,.015,.34)
+        box("Warm",x,7.94,z-2.41*zsign,10.30,.12,.10)
+        box("SuiteTrim",x,4.92,z-2.44*zsign,10.30,.28,.11)
+        box("Glass",x,5.55,z-2.38*zsign,10.19,1.05,.055)
+        box("Rail",x,6.08,z-2.38*zsign,10.20,.045,.07)
+        box("Door",x+2.9,5.99,z+2.20*zsign,1.04,2.16,.04)
+        for dx in (-5,0,5):
+            box("Frame",x+dx,6.47,z-2.37*zsign,.055,3.02,.065)
+        for j in range(16):
+            box("Suite",x-4.85+j*.64,6.44,z+2.21*zsign,.037,2.99,.035)
 
-# Short glazed hospitality boxes, placed behind the lateral upper seats.
-suites=[(.125,201),(.625,202)]
-for mid,number in suites:
-    a,b=mid-.034,mid+.034
-    floor=11.49
-    band("Suite",a,b,20.2,floor,26,floor)
-    band("Suite",a,b,22.48,floor,22.48,floor+.34)
-    band("Suite",a,b,22.48,floor+.34,25.88,floor+.34)
-    band("Facade",a,b,20.18,10.1,20.18,floor)
-    band("Suite",a,b,25.9,floor,25.9,15.0)
-    band("Slab",a-.001,b+.001,20.1,15.15,26.15,15.15)
-    band("Frame",a-.001,b+.001,20.1,14.90,20.1,15.15)
-    band("Warm",a,b,20.18,14.88,20.18,14.97)
-    band("Glass",a,b,20.34,floor,20.34,12.49)
-    band("Rail",a,b,20.34,12.49,20.34,12.54)
-    for t in [a,b]:
-        face("Facade",[point(t,20.3,floor),point(t,26,floor),point(t,26,15),point(t,20.3,15)])
-    for k in range(4):
-        t=a+(b-a)*k/3
-        rod("Frame",point(t,20.38,floor),point(t,20.38,15),.065)
-    for k in range(46):
-        t=a+(b-a)*(k+.5)/46
-        band("Timber",t-.00032,t+.00032,25.83,floor,25.83,14.98,1)
-    for k in (-1,1):
-        t=mid+k*.016
-        band("Door",t-.0035,t+.0035,25.73,floor,25.73,13.86,2)
-        band("Warm",t+.004,t+.0043,25.68,12.04,25.68,13.55,1)
-        x,z,_,_=outline(t,24.72)
-        box("Recess",x,12.0,z,1.7,.09,.69)
-        box("Frame",x,11.75,z,.13,.46,.28)
-    for k in range(5):
-        t=mid+(k-2)*.012
-        band("Warm",t-.0033,t+.0033,21.8,15.10,22.02,15.10,2)
-
-# Goals, nets, benches, and penalty box.
+# Goals and nets.
 for sign in (-1,1):
     x=sign*26
     for z in (-.92,.92):
@@ -218,10 +191,16 @@ for sign in (-1,1):
     for j in range(8):
         y=.06+j*.137
         rod("Net",(x+sign*(1.04-y*.24),y,-.83),(x+sign*(1.04-y*.24),y,.83),.012,4)
-for z,x,w in [(-16.2,-8,11),(-16.2,8,11),(16.4,0,8)]:
-    box("Upholstery",x,.48,z,w,.12,.47)
-    for dx in [-w*.4,w*.4]:
-        box("Frame",x+dx,.26,z,.18,.52,.48)
+# Benches occupy the central gap in the first two rows of sections 102 and 108.
+for sign in (-1,1):
+    for row in (1,2):
+        d,h=level(row)
+        z=sign*(15+d+.31)
+        center_x=sign*.824
+        box("Team",center_x,h+.50,z,8.4,.13,.48)
+        box("Team",center_x,h+.72,z+sign*.21,8.4,.40,.09)
+        for dx in (-3.5,0,3.5):
+            box("Frame",center_x+dx,h+.22,z,.12,.45,.37)
 
 def material(name):
     obj=bpy.data.materials.new(name)
@@ -270,34 +249,28 @@ def add_seat(sector,row,num,t,d,h):
 for i in range(12):
     sector=101+i
     t=(i+.5)/12
-    x,z,nx,nz=outline(t,12)
+    x,z,nx,nz=outline(t,7)
     base=1200 if abs(nx)>.85 else (1800 if abs(nx)>.15 else 2400)
     side="За воротами" if abs(nx)>.85 else ("Угловая трибуна" if abs(nx)>.15 else "Боковая трибуна")
-    sectors.append(dict(id=sector,title=side,base=base,anchor=[rounded(x),4.5,rounded(z)],normal=[rounded(nx),rounded(nz)]))
-    for row in range(1,17):
+    sectors.append(dict(id=sector,title=side,base=base,anchor=[rounded(x),2.65,rounded(z)],normal=[rounded(nx),rounded(nz)]))
+    for row in range(1,10):
         d,h=level(row)
         count=22+((row-1)//3)*2 if abs(nx)>.15 else 23
         positions=row_positions(aisle_center(i)+.0055,aisle_center(i+1)-.0055,d+.31,count,
                                 .535 if abs(nx)>.15 else .505)
         for n,t in enumerate(positions,1):
+            if sector in (102,108) and row <= 2 and 4 <= n <= 20:
+                continue
             add_seat(sector,row,n,t,d+.31,h)
-for mid,number in suites:
-    x,z,nx,nz=outline(mid,22.6)
-    sectors.append(dict(id=number,title="VIP-ложа",base=6500,anchor=[rounded(x),11.5,rounded(z)],normal=[rounded(nx),rounded(nz)]))
-    for row in [1,2]:
-        for n in range(1,13):
-            add_seat(number,row,n,mid+(n-6.5)*.745/sum(lengths),20.75+row*1.14,11.51+(row-1)*.34)
-# Export the ticketable boundaries separately from the architectural decoration.
-for sec in sectors:
-    if sec["id"]<200:
-        i=sec["id"]-101
-        start,end=aisle_center(i)+.00375,aisle_center(i+1)-.00375
-        bands=[(2.52,1.08),(10.77,5.43),(12.87,7.45),(19.75,10.95)]
-    else:
-        mid=dict((n,t) for t,n in suites)[sec["id"]]
-        start,end=mid-.034,mid+.034
-        bands=[(20.05,15.19),(26.15,15.19)]
-    sec["surface"]=[[[rounded(v) for v in point(start+(end-start)*j/16,d,h)] for j in range(17)] for d,h in bands]
+for x,sign,number in suites:
+    sectors.append(dict(id=number,title="VIP-комната",base=6500,
+                        anchor=[x,5.05,sign*29.05],normal=[0,sign],
+                        surface=[[[round(x-5.2+10.4*j/16,3),8.23,round(sign*z,3)]
+                                  for j in range(17)] for z in (26.58,31.52)]))
+for i,sec in enumerate(sectors[:12]):
+    start,end=aisle_center(i)+.00375,aisle_center(i+1)-.00375
+    sec["surface"]=[[[rounded(v) for v in point(start+(end-start)*j/16,d,h)] for j in range(17)]
+                    for d,h in [(2.52,1.08),(11.12,5.28)]]
 (ASSETS/"layout.json").write_text(json.dumps({"sectors":sectors,"seats":seats},ensure_ascii=False,separators=(",",":")),encoding="utf8")
 prototypes=seating.masters(ASSETS/"seating.glb")
 meshes={}
@@ -328,7 +301,7 @@ ice=mesh_obj("Rink | match markings",[xyz(p) for p in ice_points],[tuple(reverse
 ice_material=materials["Board"].copy()
 ice_material.name="Ice | Polaris"
 ice.data.materials[0]=ice_material
-texfile=ROOT/"model"/"ice.webp"
+texfile=ASSETS/"ice.webp"
 if texfile.exists():
     mapping=ice.data.uv_layers.new(name="Rink markings")
     for loop in ice.data.loops:
@@ -371,9 +344,6 @@ for screen in bpy.data.screens:
             space.shading.color_type="MATERIAL"
             space.overlay.show_overlays=False
 bpy.context.preferences.filepaths.save_version=0
-photos=photography.prepare(scene,seats)
 bpy.ops.wm.save_as_mainfile(filepath=str(ROOT/"model"/"Polaris.blend"),compress=True)
-if "--portraits" in sys.argv:
-    photography.render(scene,photos,ASSETS)
 print(f"Polaris: {len(sectors)} sectors, {len(seats)} seats")
 

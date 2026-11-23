@@ -1,0 +1,31 @@
+{
+  "measurement": "Built application on localhost, fresh headless Chrome at 390x844, encoded response body sizes including the HTML. Separate throttled run with 6x CPU slowdown, 100 ms latency and 200000 B/s download.",
+  "before": {
+    "bytes": 3898471,
+    "requests": 18,
+    "js": 734486,
+    "api": 96370,
+    "models": 3
+  },
+  "after": {
+    "bytes": 137968,
+    "requests": 8,
+    "js": 18179,
+    "api": 6738,
+    "models": 0,
+    "lcp": 140,
+    "cls": 0
+  },
+  "throttledMobile": {
+    "lcp": 1728,
+    "cls": 0,
+    "events": [
+      40,
+      40,
+      232,
+      16,
+      16,
+      128
+    ]
+  }
+}

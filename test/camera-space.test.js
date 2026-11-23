@@ -31,14 +31,14 @@ test('Flights through the bowl or a suite roof require a change of shot',()=>{
   const sec=sectors.find(s=>s.id===104),{pos,target}=sectionPose(sec,1.6);
   const underneath=target.clone().add(new Vector3(13.85,2.95,-19.58));
   assert.equal(clearPath(pos,underneath,suites),false);
-  assert.equal(clearPath(new Vector3(0,18,-37.6),new Vector3(0,13,-37.6),suites),false);
+  assert.equal(clearPath(new Vector3(5.25,10,-29.1),new Vector3(5.25,7,-29.1),suites),false);
   assert.equal(clearPath(pos,new Vector3(0,30,0),suites),true);
 });
 
 test('Sector navigation wraps around the rink and connects each box to the seats below',()=>{
   assert.deepEqual(neighboringSectors(sectors,104).map(s=>s.id),[103,105]);
-  assert.deepEqual(neighboringSectors(sectors,101).map(s=>s.id),[112,102]);
-  for(const [box,stand] of [[201,102],[202,108]]){
+  assert.deepEqual(neighboringSectors(sectors,101).filter(s=>s.id<200).map(s=>s.id),[112,102]);
+  for(const [box,stand] of [[201,101],[203,102],[206,108],[208,107]]){
     assert.ok(neighboringSectors(sectors,box).some(s=>s.id===stand));
     assert.ok(neighboringSectors(sectors,stand).some(s=>s.id===box));
   }
@@ -46,10 +46,10 @@ test('Sector navigation wraps around the rink and connects each box to the seats
 
 test('The same metre-scale player subtends a smaller angle from the back row',()=>{
   function apparentHeight(row){
-    const s=seats.find(s=>s[0]===108&&s[1]===row&&s[2]===12);
+    const s=seats.find(s=>s[0]===108&&s[1]===row&&s[2]===2);
     const cam=new PerspectiveCamera(65,1.6,.085,500);
     cam.position.set(s[3],s[4]+1.20,s[5]);cam.lookAt(0,.63,0);cam.updateMatrixWorld();
     return new Vector3(0,1.72,0).project(cam).y-new Vector3(0,.025,0).project(cam).y;
   }
-  assert.ok(apparentHeight(1)>apparentHeight(16)*1.7);
+  assert.ok(apparentHeight(1)>apparentHeight(9)*1.3);
 });
