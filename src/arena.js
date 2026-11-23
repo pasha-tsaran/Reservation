@@ -179,30 +179,20 @@ export async function createArena(mount,labels,layout,callbacks){
   intersection.observe(mount);
 
   const tooltip=document.createElement('div');tooltip.className='arena-tip';tooltip.setAttribute('aria-hidden','true');labels.append(tooltip);
-  const callout=document.createElement('span');
-  callout.className='seat-callout';callout.hidden=true;labels.append(callout);
   let pinned=null,pinnedPoint=null,returnPose=null;
   function pin(id){
     if(id===pinned)return;
     pinned=id;pinnedPoint=id?seating.point(id):null;
-    if(id){
-      const s=seatsById.get(id);
-      callout.textContent='Ряд '+s[1]+' · Место '+s[2];
-    }
     tooltip.classList.toggle('open',!!hovered&&hovered.seat!==pinned);
     positionCallout();invalidate();
   }
   function positionCallout(){
-    if(!pinnedPoint||move||mode!=='section'){callout.hidden=true;return;}
+    if(!pinnedPoint)return;
+    if(move||mode!=='section'){callbacks.seatAnchor(null);return;}
     proj.copy(pinnedPoint).project(camera);
-    if(Math.abs(proj.x)>1||Math.abs(proj.y)>1||Math.abs(proj.z)>1){callout.hidden=true;return;}
+    if(Math.abs(proj.x)>1||Math.abs(proj.y)>1||Math.abs(proj.z)>1){callbacks.seatAnchor(null);return;}
     const w=labels.clientWidth,h=labels.clientHeight,x=(proj.x+1)*w/2,y=(1-proj.y)*h/2;
-    callout.hidden=false;
-    const half=callout.offsetWidth/2,cx=T.MathUtils.clamp(x,half+5,w-half-5);
-    const below=y<callout.offsetHeight+14;
-    callout.classList.toggle('below',below);
-    callout.style.left=cx+'px';callout.style.top=(y+(below?10:-6))+'px';
-    callout.style.setProperty('--seat-x',T.MathUtils.clamp(x-cx+half,8,2*half-8)+'px');
+    callbacks.seatAnchor(x,y);
   }
   const price=n=>new Intl.NumberFormat('ru-RU').format(n)+' ₽';
   function hover(value=null,anchor=null){

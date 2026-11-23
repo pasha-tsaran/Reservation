@@ -20,21 +20,25 @@
         <div class="panel-heading"><div><h2 id="area-title" tabindex="-1">Обзор арены</h2><p id="area-description">Выберите сектор или отдельную VIP-комнату.</p></div>
           <div class="switch" role="group" aria-label="Отображение зон"><i></i><button data-action="three" aria-pressed="true"><span data-icon="cube"></span>3D</button><button data-action="map" aria-pressed="false"><span data-icon="ice"></span>Схема</button><button data-action="list" aria-pressed="false"><span data-icon="list"></span>Список</button></div>
           <div class="section-actions" role="group" aria-label="Действия в секторе" hidden>
-            <button data-action="preview" class="preview-button" hidden>Посмотреть с места</button>
+            <button data-action="room-preview" class="preview-button" hidden>Вид из комнаты</button>
+            <button data-action="sector-camera" class="back" hidden>К сектору</button>
             <button data-action="back" class="back"><span data-icon="back"></span> К арене</button>
           </div>
         </div>
         <div id="arena-stage" class="arena-stage" aria-label="Трёхмерная хоккейная арена">
-          <div id="scene" role="group" aria-label="Вращение и выбор мест на арене"></div><div id="pins"></div>
+          <div id="scene" role="group" tabindex="-1" aria-label="Вращение и выбор мест на арене"></div><div id="pins"></div>
           <span class="scene-status" role="status">Загружаем 3D-арену…</span>
           <div class="scene-tools"><button data-action="scene-out" aria-label="Отдалить">−</button><button data-action="scene-in" aria-label="Приблизить">+</button><button data-action="expand" aria-label="Развернуть арену"><span data-icon="expand"></span></button></div>
           <div class="scene-dock">
             <button data-action="top" aria-pressed="false">Вид сверху</button>
-            <button data-action="sector-camera" hidden>К сектору</button>
             <button data-action="land" hidden>Пропустить подлёт</button>
           </div>
         </div>
         <div id="area"></div>
+        <div id="seat-actions" class="seat-actions" role="group" aria-label="Действия с местом" hidden>
+          <button data-action="preview" class="preview-button">Посмотреть с места</button>
+          <button data-action="add-seat" class="primary">Добавить</button>
+        </div>
       </section>
       <aside class="order-column" id="order-column" aria-label="Матч, заказ и стоимость">
         <section class="event" aria-labelledby="event-title">

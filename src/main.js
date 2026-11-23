@@ -11,10 +11,13 @@ const limit = 8;
 const dialog = q('dialog');
 let data, items = new Map(), cart = [], section = null, row = 1, view = 'three', scale = 1;
 let busy = false, dialogKind = '', previousSnapshot = '', requestSequence = 0, noticeTimer, tickTimer;
-let arena, loadingArena=false, sceneFailed=false, pinned=null, fromSeat=false, overhead=false;
+let arena, arenaLoad, sceneFailed=false, pinned=null, fromSeat=false, overhead=false;
 let inventory={};
 const stage=q('#arena-stage');
 const sectionActions=q('.section-actions');
+const seatActions=q('#seat-actions');
+const panel=q('#arena-panel');
+const seatButton=()=>pinned && q(`.seat[data-item="${pinned}"]`);
 const roomSector = id => 200 + Number(id.slice(4));
 const sceneNumber = () => typeof section === 'string' ? roomSector(section) : section;
 
@@ -25,8 +28,56 @@ function syncSceneControls() {
   q('[data-action=top]').setAttribute('aria-pressed', overhead);
   q('[data-action=top]').textContent = overhead ? 'Объёмный вид' : 'Вид сверху';
   q('[data-action=sector-camera]').hidden = !fromSeat;
-  q('[data-action=preview]').hidden = stage.hidden || !arena || !section || fromSeat || (!pinned && typeof section !== 'string');
-  q('[data-action=preview]').textContent = typeof section === 'string' ? 'Вид из комнаты' : 'Посмотреть с места';
+  q('[data-action=room-preview]').hidden = stage.hidden || !arena || typeof section !== 'string' || fromSeat;
+}
+function positionSeatActions(x,top,bottom=top) {
+  if(x==null){seatActions.hidden=true;return;}
+  const parent=seatActions.parentElement;
+  seatActions.hidden=false;
+  const width=seatActions.offsetWidth, height=seatActions.offsetHeight;
+  const left=Math.max(3,Math.min(x-width/2,parent.clientWidth-width-3));
+  const above=top>=height+8;
+  const y=above?top-height-8:Math.min(bottom+8,parent.clientHeight-height-3);
+  seatActions.style.left=left+'px';
+  seatActions.style.top=Math.max(3,y)+'px';
+  seatActions.classList.toggle('below',!above);
+  seatActions.style.setProperty('--tip-x',Math.max(8,Math.min(width-8,x-left))+'px');
+}
+function positionGridActions() {
+  if(!pinned || seatActions.parentElement!==panel)return;
+  const trigger=seatButton();
+  if(!trigger || !panel.clientWidth){seatActions.hidden=true;return;}
+  trigger.setAttribute('aria-expanded','true');
+  const seat=trigger.getBoundingClientRect(), area=q('#area').getBoundingClientRect();
+  if(seat.bottom<=area.top || seat.top>=area.bottom){seatActions.hidden=true;return;}
+  const bounds=panel.getBoundingClientRect();
+  positionSeatActions(seat.left+seat.width/2-bounds.left-panel.clientLeft,
+    seat.top-bounds.top-panel.clientTop,seat.bottom-bounds.top-panel.clientTop);
+}
+function closeSeatActions(restoreFocus=false) {
+  const trigger=seatButton();
+  if(trigger)trigger.setAttribute('aria-expanded','false');
+  pinned=null;
+  arena?.pin(null);
+  seatActions.hidden=true;
+  if(restoreFocus){
+    const focusTarget=seatActions.parentElement===stage?q('#scene'):trigger;
+    focusTarget?.focus({preventScroll:true});
+  }
+}
+function chooseSeat(id,source,keyboard=false) {
+  closeSeatActions();
+  const item=items.get(id);
+  if(!item || item.state!==0){notify('Это место занято. Выберите свободное.');return;}
+  if(row!==item.row){row=item.row;drawArea();}
+  pinned=id;
+  seatActions.setAttribute('aria-label',`Ряд ${item.row}, место ${item.number}`);
+  q('[data-action=preview]').disabled=sceneFailed;
+  q('[data-action=add-seat]').textContent=cart.includes(id)?'Убрать':'Добавить';
+  source.append(seatActions);
+  if(source===stage)arena.pin(id);
+  else positionGridActions();
+  if(keyboard)seatActions.querySelector('button:not(:disabled)').focus({preventScroll:true});
 }
 function syncCamera(instant=false) {
   fromSeat=false;
@@ -39,9 +90,11 @@ function syncCamera(instant=false) {
 }
 function previewSeat(id) {
   if(!arena || view!=='three' || !id)return;
+  closeSeatActions();
   fromSeat=true;
   arena.eye(id);
   syncSceneControls();
+  q('[data-action=sector-camera]').focus({preventScroll:true});
 }
 function fallback3D() {
   sceneFailed=true;
@@ -50,28 +103,26 @@ function fallback3D() {
   if(document.fullscreenElement===stage)document.exitFullscreen().catch(()=>{});
   stage.classList.remove('expanded');
   syncFullscreenActions();
-  fromSeat=false;pinned=null;
+  fromSeat=false;closeSeatActions();
   q('[data-action=three]').disabled=true;
   q('[data-action=three]').title='3D недоступно в этом браузере';
   drawArea();
   notify('Не удалось открыть 3D. Места и VIP-комнаты доступны на схеме.');
 }
-async function loadArena() {
-  if(arena || loadingArena || sceneFailed || view!=='three')return;
-  loadingArena=true;
+function loadArena() {
+  if(arena || sceneFailed || view!=='three')return;
+  return arenaLoad ??= initializeArena().finally(()=>{arenaLoad=null;});
+}
+async function initializeArena() {
   try {
     const [{createArena},response]=await Promise.all([import('./arena.js'),fetch('./arena/layout.json')]);
     if(!response.ok)throw new Error('layout');
     const layout=await response.json();
     arena=await createArena(q('#scene'),q('#pins'),layout,{
       sector(number){openSection(number<200 ? number : 'vip-'+String(number-200).padStart(2,'0'));},
-      seat(id){
-        const item=items.get(id);
-        if(!item || item.state!==0){notify('Это место занято. Выберите свободное.');return;}
-        if(row!==item.row){row=item.row;drawArea();}
-        toggleItem(id);
-      },
-      dismiss(){pinned=null;arena.pin(null);syncSceneControls();},
+      seat(id){chooseSeat(id,stage);},
+      seatAnchor(x,y){if(pinned && seatActions.parentElement===stage)positionSeatActions(x,y);},
+      dismiss(){closeSeatActions();},
       flight(active){q('[data-action=land]').hidden=!active;},
       fallback:fallback3D
     });
@@ -79,7 +130,6 @@ async function loadArena() {
     arena.update(inventory,cart);
     syncCamera(true);
   }catch(error){console.warn('3D arena:',error);fallback3D();}
-  finally{loadingArena=false;}
 }
 try {
   const saved = JSON.parse(sessionStorage.getItem(cartKey));
@@ -164,6 +214,7 @@ function drawArea() {
   if(section && view!=='three' && !sceneFailed)content+='<button class="scene-link" data-action="section-three">Открыть в 3D</button>';
   q('#area').innerHTML = content;
   syncSceneControls();
+  positionGridActions();
   if (!section && view === 'map' && scale !== 1) setZoom(scale);
 }
 
@@ -204,7 +255,7 @@ async function refresh() {
   }
   q('#stand-price').textContent = 'от ' + money(Math.min(...data.sectors.flatMap(s => s.rows.map(r => r.price))));
   q('#room-price').textContent = money(data.rooms[0].price);
-  if(pinned && !cart.includes(pinned)){pinned=null;arena?.pin(null);}
+  if(pinned && items.get(pinned)?.state!==0)closeSeatActions();
   arena?.update(inventory,cart);
   renderKeepingFocus();
   if(view==='three')loadArena();
@@ -264,14 +315,7 @@ function toggleItem(id) {
     itemButton.setAttribute('aria-pressed', selected);
     if (items.get(id).kind === 'room') itemButton.innerHTML = selected ? 'Убрать из заказа ' + icon('minus',16) : 'Добавить комнату ' + icon('plus',16);
   }
-  if(arena){
-    if(view==='three' && section===items.get(id)?.sector){
-      pinned=selected?id:null;
-      arena.pin(pinned);
-    }
-    arena.update(inventory,cart);
-    syncSceneControls();
-  }
+  arena?.update(inventory,cart);
   drawOrder();
   if (active.hasAttribute('data-remove')) (q('[data-remove]') || itemButton || q('[data-action=holds]')).focus({preventScroll: true});
 }
@@ -293,7 +337,7 @@ async function book() {
       }
     }
     items = indexPlan(data);
-    cart = []; save();pinned=null;arena?.pin(null);
+    cart = []; save();closeSeatActions();
     data.holds.unshift(hold);
     updateCount();
     showHolds(true);
@@ -306,8 +350,9 @@ async function book() {
 }
 
 function openSection(value) {
+  closeSeatActions();
   section = value;
-  row = 1;pinned=null;
+  row = 1;
   syncCamera();
   drawArea();
   q('#area-title').focus({ preventScroll: true });
@@ -319,12 +364,13 @@ async function click(event) {
   if (!target || target.disabled) return;
   const d = target.dataset;
   if (d.pane) {
+    closeSeatActions();
     q('.workspace').dataset.pane=d.pane;
     for(const button of q('.mobile-panels').querySelectorAll('button'))button.setAttribute('aria-pressed',button===target);
     return;
   }
   if (d.action === 'help') {
-    showDialog('Как забронировать', '<ol class="help-steps"><li>Выберите чёрный сектор на схеме. Откройте ряд и добавьте свободные места в заказ.</li><li>Жёлтые VIP-комнаты бронируются целиком. Зелёные зоны у льда предназначены для команд и тренеров.</li><li>Выберите до восьми позиций и нажмите «Забронировать». Демо-бронь хранится в этом браузере 10 минут. Отменить её можно в разделе «Мои брони».</li></ol>', 'help');
+    showDialog('Как забронировать', '<ol class="help-steps"><li>Выберите сектор и нажмите на свободное кресло. Нажмите «Посмотреть с места», чтобы оценить обзор, или «Добавить», чтобы включить место в заказ.</li><li>Жёлтые VIP-комнаты бронируются целиком. Зелёные зоны у льда предназначены для команд и тренеров.</li><li>Выберите до восьми позиций и нажмите «Забронировать». Демо-бронь хранится в этом браузере 10 минут. Отменить её можно в разделе «Мои брони».</li></ol>', 'help');
     return;
   }
   if (d.action === 'close') { dialog.close(); return; }
@@ -332,7 +378,8 @@ async function click(event) {
   if (d.action === 'holds') { await refresh(); showHolds(); return; }
   if (!data) return;
   if (d.sector || d.room) { openSection(d.room || Number(d.sector)); return; }
-  if (d.item || d.remove) { toggleItem(d.item || d.remove); return; }
+  if (d.item && items.get(d.item)?.kind==='seat') { chooseSeat(d.item,panel,event.detail===0); return; }
+  if (d.item || d.remove) { closeSeatActions();toggleItem(d.item || d.remove); return; }
   if (d.cancel) {
     target.disabled = true;
     try {
@@ -363,8 +410,27 @@ async function click(event) {
       break;
     case 'top': overhead=!overhead;arena?.overview(overhead);syncSceneControls();break;
     case 'land': arena?.land(); break;
-    case 'sector-camera': syncCamera(); break;
-    case 'preview': previewSeat(typeof section==='string'?sceneNumber():pinned);break;
+    case 'sector-camera':
+      closeSeatActions();syncCamera();q('[data-action=back]').focus({preventScroll:true});break;
+    case 'room-preview': previewSeat(sceneNumber());break;
+    case 'preview': {
+      const id=pinned;
+      if(!id || sceneFailed)return;
+      if(view!=='three'){view='three';drawArea();if(arena)syncCamera();}
+      await loadArena();
+      if(pinned===id)previewSeat(id);
+      break;
+    }
+    case 'add-seat': {
+      if(!pinned || busy)return;
+      const id=pinned, selected=cart.includes(id);
+      toggleItem(id);
+      if(selected!==cart.includes(id)){
+        closeSeatActions(seatActions.contains(document.activeElement));
+        notify(selected?'Место убрано из заказа.':'Место добавлено в заказ.');
+      }
+      break;
+    }
     case 'back': {
       const old = section;
       openSection(null);
@@ -378,15 +444,23 @@ async function click(event) {
 }
 
 document.addEventListener('click', e => click(e).catch(error => notify(error.message)));
+document.addEventListener('pointerdown', e => {
+  if(pinned && !seatActions.contains(e.target) && !e.target.closest('.seat,#scene canvas'))closeSeatActions();
+});
 document.addEventListener('keydown', e => {
+  if(e.key==='Escape' && pinned){e.preventDefault();closeSeatActions(true);return;}
   if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.zone[role=button]')) {
     e.preventDefault();
     click(e).catch(error => notify(error.message));
   }
 });
 document.addEventListener('change', e => {
-  if (e.target.id === 'row') { pinned=null;arena?.pin(null);row = Number(e.target.value); drawArea(); q('#row').focus({ preventScroll: true }); }
+  if (e.target.id === 'row') { closeSeatActions();row = Number(e.target.value); drawArea(); q('#row').focus({ preventScroll: true }); }
 });
+q('#area').addEventListener('scroll',positionGridActions,{passive:true});
+const seatLayout=new ResizeObserver(positionGridActions);
+seatLayout.observe(panel);
+seatLayout.observe(q('#area'));
 dialog.addEventListener('close', () => { clearInterval(tickTimer); dialogKind = ''; });
 dialog.addEventListener('click', e => { if (e.target === dialog) dialog.close(); });
 function syncVisible() {

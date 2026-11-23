@@ -44,7 +44,7 @@ export function sectionPanel(sector, row, cart) {
     if (state === '-') return index === states.indexOf('-') ? '<span class="bench-gap">Скамейка команды и тренеров</span>' : '';
     const key = [sector.id, row, n].join('-');
     const selected = cart.includes(key);
-    return `<button class="seat" data-item="${key}" ${state !== '0' ? 'disabled' : ''} aria-pressed="${selected}" aria-label="Место ${n}, ряд ${row}, ${state !== '0' ? 'занято' : money(price)}">${n}</button>`;
+    return `<button class="seat" data-item="${key}" ${state !== '0' ? 'disabled' : ''} aria-controls="seat-actions" aria-expanded="false" aria-pressed="${selected}" aria-label="Место ${n}, ряд ${row}, ${state !== '0' ? 'занято' : money(price)}">${n}</button>`;
   }).join('');
   const rows = sector.rows.map((_, i) => `<option value="${i + 1}" ${row === i + 1 ? 'selected' : ''}>Ряд ${i + 1}</option>`).join('');
   return `<div class="seat-panel"><div class="sector-controls"><label>Выберите ряд <select id="row">${rows}</select></label><span>За место <strong>${money(price)}</strong></span></div>
