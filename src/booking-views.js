@@ -49,7 +49,7 @@ export function sectionPanel(sector, row, cart) {
   const rows = sector.rows.map((_, i) => `<option value="${i + 1}" ${row === i + 1 ? 'selected' : ''}>Ряд ${i + 1}</option>`).join('');
   return `<div class="seat-panel"><div class="sector-controls"><label>Выберите ряд <select id="row">${rows}</select></label><span>За место <strong>${money(price)}</strong></span></div>
     <div class="ice-edge">${icon('ice',16)} Лёд</div><div class="seat-grid ${states.includes('-') ? 'with-bench' : ''}">${buttons}</div></div>
-    <div class="legend"><span><i class="key stand-key"></i>Свободно</span><span><i class="key picked-key"></i>Выбрано</span><span><i class="key taken-key"></i>Занято</span></div>`;
+    <div class="legend"><span><i class="key free-key"></i>Свободно</span><span><i class="key picked-key"></i>Выбрано</span><span><i class="key taken-key"></i>Занято</span></div>`;
 }
 
 export function roomPanel(room, cart) {
